@@ -216,144 +216,6 @@ class _AdminPYQsScreenState extends State<AdminPYQsScreen> {
     }
   }
 
-  Future<void> _createPyq() async {
-    final title = TextEditingController();
-    final year = TextEditingController(text: '${DateTime.now().year}');
-    final month = TextEditingController();
-    final subject = TextEditingController();
-    final difficulty = ValueNotifier<String>('Medium');
-
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('New legacy PYQ paper'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: title,
-                decoration: const InputDecoration(labelText: 'Title'),
-              ),
-              TextField(
-                controller: year,
-                decoration: const InputDecoration(labelText: 'Year'),
-                keyboardType: TextInputType.number,
-              ),
-              TextField(
-                controller: month,
-                decoration:
-                    const InputDecoration(labelText: 'Month (optional)'),
-              ),
-              TextField(
-                controller: subject,
-                decoration:
-                    const InputDecoration(labelText: 'Subject (optional)'),
-              ),
-              ValueListenableBuilder<String>(
-                valueListenable: difficulty,
-                builder: (context, val, _) => DropdownButton<String>(
-                  value: val,
-                  isExpanded: true,
-                  items: const [
-                    DropdownMenuItem(value: 'Easy', child: Text('Easy')),
-                    DropdownMenuItem(value: 'Medium', child: Text('Medium')),
-                    DropdownMenuItem(value: 'Hard', child: Text('Hard')),
-                  ],
-                  onChanged: (v) {
-                    if (v != null) difficulty.value = v;
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Create'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true || !mounted) return;
-    try {
-      final y = int.tryParse(year.text.trim());
-      if (y == null || title.text.trim().isEmpty) {
-        throw Exception('Title and valid year required');
-      }
-      await _api.adminCreatePYQ({
-        'title': title.text.trim(),
-        'year': y,
-        if (month.text.trim().isNotEmpty) 'month': month.text.trim(),
-        if (subject.text.trim().isNotEmpty) 'subject': subject.text.trim(),
-        'difficulty': difficulty.value,
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('PYQ created')),
-        );
-        _load();
-      }
-    } catch (e) {
-      _showError(e);
-    }
-  }
-
-  Future<void> _uploadCsv(String pyqId) async {
-    final pick = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['csv'],
-      withData: true,
-    );
-    if (pick == null) return;
-    try {
-      final fd = FormData.fromMap({
-        'file': await _multipartFileFromPick(pick.files.single),
-      });
-      final res = await _api.adminUploadPYQCSV(pyqId, fd);
-      if (mounted && res.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Added ${res.data['questions_added'] ?? 0} rows'),
-          ),
-        );
-        _load();
-      }
-    } catch (e) {
-      _showError(e);
-    }
-  }
-
-  Future<void> _uploadPdf(String pyqId) async {
-    final pick = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf'],
-      withData: true,
-    );
-    if (pick == null) return;
-    try {
-      final fd = FormData.fromMap({
-        'file': await _multipartFileFromPick(pick.files.single),
-      });
-      final res = await _api.adminUploadPYQPdf(pyqId, fd);
-      if (mounted && res.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('PDF: ${res.data['reference_pdf_path'] ?? 'ok'}'),
-          ),
-        );
-        _load();
-      }
-    } catch (e) {
-      _showError(e);
-    }
-  }
-
   Future<MultipartFile> _multipartFileFromPick(PlatformFile file) async {
     if (kIsWeb) {
       final bytes = file.bytes;
@@ -392,11 +254,6 @@ class _AdminPYQsScreenState extends State<AdminPYQsScreen> {
             tooltip: 'Create section',
             icon: const Icon(Icons.create_new_folder),
             onPressed: _createSection,
-          ),
-          IconButton(
-            tooltip: 'Create legacy PYQ paper',
-            icon: const Icon(Icons.add),
-            onPressed: _createPyq,
           ),
         ],
       ),
@@ -437,29 +294,6 @@ class _AdminPYQsScreenState extends State<AdminPYQsScreen> {
                     )
                   else
                     ..._sectionCategories.map(_buildCategoryCard),
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(16, 24, 16, 8),
-                    child: Divider(),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                    child: Text(
-                      'Legacy PYQ papers',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                  ),
-                  if (_pyqs.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Card(
-                        child: Padding(
-                          padding: EdgeInsets.all(16),
-                          child: Text('No legacy PYQ papers'),
-                        ),
-                      ),
-                    )
-                  else
-                    ..._pyqs.map(_buildLegacyPyqCard),
                 ],
               ),
             ),
@@ -506,33 +340,6 @@ class _AdminPYQsScreenState extends State<AdminPYQsScreen> {
               );
             }),
         ],
-      ),
-    );
-  }
-
-  Widget _buildLegacyPyqCard(dynamic item) {
-    final p = item as Map<String, dynamic>;
-    final id = p['id'].toString();
-    final pdf = p['reference_pdf_path'];
-
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: ListTile(
-        title: Text('${p['title']}'),
-        subtitle: Text(
-          'Year ${p['year']} - ${p['subject'] ?? '-'} - Q: ${p['total_questions']}'
-          '${pdf != null ? '\nPDF: $pdf' : ''}',
-        ),
-        trailing: PopupMenuButton<String>(
-          onSelected: (v) {
-            if (v == 'csv') _uploadCsv(id);
-            if (v == 'pdf') _uploadPdf(id);
-          },
-          itemBuilder: (_) => const [
-            PopupMenuItem(value: 'csv', child: Text('Upload questions CSV')),
-            PopupMenuItem(value: 'pdf', child: Text('Upload reference PDF')),
-          ],
-        ),
       ),
     );
   }
