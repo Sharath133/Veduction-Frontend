@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -6,9 +5,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ApiService {
   // Use different base URLs based on platform
   static String get baseUrl {
+    const configuredBaseUrl = String.fromEnvironment('API_BASE_URL');
+    if (configuredBaseUrl.isNotEmpty) {
+      return configuredBaseUrl;
+    }
+
     if (kIsWeb) {
       return 'http://localhost:8000/api/v1';
-    } else if (Platform.isAndroid) {
+    } else if (defaultTargetPlatform == TargetPlatform.android) {
       return 'http://10.0.2.2:8000/api/v1'; // Android emulator
     } else {
       return 'http://localhost:8000/api/v1'; // iOS simulator
